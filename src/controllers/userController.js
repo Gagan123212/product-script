@@ -182,6 +182,28 @@ exports.productsScript = async (req, res) => {
       "_id"
     );
 
+    const colorWrongInfo = info
+      .map((item) => {
+        // console.log('in map', item.color, item.optionName);
+        if (
+          item.color !== "" &&
+          item.OptionName0 !== "" &&
+          item.OptionValue0 === ""
+        ) {
+          return {
+            color: item.color,
+            attr: item.OptionName0,
+          };
+        }
+        return null; // Return null for items that don't meet the conditions
+      })
+      .filter((item) => item !== null);
+
+    console.log(colorWrongInfo);
+
+    return res.status(200).json({
+      data: colorWrongInfo,
+    });
     // const sectionAndCategoriesSet = new Set();
 
     // info.forEach((e) => {
@@ -300,12 +322,7 @@ exports.productsScript = async (req, res) => {
       let attribuiteTearmName = "";
       let attribuiteTearm = "";
       for (const product of keysRelatedProducts) {
-        if (product.size !== "") {
-          optionsPro["Size"] = product.size;
-        }
-        if (product.color !== "") {
-          optionsPro["Color"] = product.color;
-        }
+        const attribuiteTearmInfo = [];
         for (let i = 0; i < 10; i++) {
           // Assuming the maximum index is 9
           const optionName = product[`OptionName${i}`];
@@ -366,9 +383,10 @@ exports.productsScript = async (req, res) => {
               });
               attribuiteTearmName = optionValue;
             }
-            const attribuiteTearmInfo = [
-              { _id: attribuiteTearm._id, name: attribuiteTearm.name },
-            ];
+            attribuiteTearmInfo.push({
+              _id: attribuiteTearm._id,
+              name: attribuiteTearm.name,
+            });
 
             if (!attributes.length) {
               let info = {
@@ -398,31 +416,37 @@ exports.productsScript = async (req, res) => {
               }
             }
 
-            let productVariationData = {
-              price: product.cost,
-              compare_price: product.MSRP,
-              sku: product.parent_name + moment().unix(),
-              stock_quantity: product.QTY_available,
-              attributes: attribuiteTearmInfo,
-              image: product.picture_url_1,
-              images: [product.picture_url_1],
-              description: firstProduct.product_description,
-              tdid: product.tdid,
-            };
-            const query = { tdid: product.tdid };
-            const variation = await productVariation.findOneAndUpdate(
-              query,
-              productVariationData,
-              {
-                upsert: true,
-                new: true,
-              }
-            );
-            if(!variations[variation._id]){
-              variations.push(variation._id);
-            }
             // console.log({optionName, optionValue});
           }
+        }
+        if (product.size !== "") {
+          optionsPro["Size"] = product.size;
+        }
+        if (product.color !== "") {
+          optionsPro["Color"] = product.color;
+        }
+        let productVariationData = {
+          price: product.cost,
+          compare_price: product.MSRP,
+          sku: product.parent_name + moment().unix(),
+          stock_quantity: product.QTY_available,
+          attributes: attribuiteTearmInfo,
+          image: product.picture_url_1,
+          images: [product.picture_url_1],
+          description: firstProduct.product_description,
+          tdid: product.tdid,
+        };
+        const query = { tdid: product.tdid };
+        const variation = await productVariation.findOneAndUpdate(
+          query,
+          productVariationData,
+          {
+            upsert: true,
+            new: true,
+          }
+        );
+        if (!variations[variation._id]) {
+          variations.push(variation._id);
         }
       }
 
@@ -491,22 +515,16 @@ exports.productsScript = async (req, res) => {
         returnDays: firstProduct.return,
         tdid: firstProduct.tdid,
         attributes: attributes,
-        variations: variations
+        variations: variations,
       };
-      let query = { tdid : firstProduct.tdid};
-      await Product.findOneAndUpdate(
-        query,
-        productData,
-        {
-          upsert: true,
-          new: true,
-        }
-      );
-      // console.log("product Info ", productData);
-      res.status(200).json({
-        data: productData,
+      let query = { tdid: firstProduct.tdid };
+      await Product.findOneAndUpdate(query, productData, {
+        upsert: true,
+        new: true,
       });
-      if (iterator === "3-850011460009-1") break;
+      // console.log("product Info ", productData);
+
+      if (iterator === "6-851-3") break;
 
       // const options = {};
 
