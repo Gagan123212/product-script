@@ -1,5 +1,5 @@
 const mongoose = require("mongoose")
-const constants = require('../../../config/constants.json')
+const constants = require('../config/constants.json');
 const ObjectId = require('objectid')
 let slug = require("mongoose-slug-updater")
 mongoose.plugin(slug)

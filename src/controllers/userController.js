@@ -18,6 +18,8 @@ const CategoryCount = require("../models/categoryIndex");
 const Brand = require("../models/brandModel");
 const ObjectId = require("objectid");
 const moment = require("moment");
+const productVariation = require("../models/productVariationTable");
+const Product = require("../models/productsTable");
 const File = require("../models/fileTable");
 
 exports.getUsers = async (req, res) => {
@@ -276,9 +278,11 @@ exports.productsScript = async (req, res) => {
 
     for (const iterator of keys) {
       const keysRelatedProducts = info.filter((e) => e.parent_upc === iterator);
-      console.log(keysRelatedProducts[0]);
+      // console.log(keysRelatedProducts[0]);
       const firstProduct = keysRelatedProducts[0];
-      let variations = [];
+
+      const variations = [];
+      const attributes = [];
       const brand = await Brand.findOne({
         name: firstProduct.manufacturer_name,
       }).select("_id");
@@ -289,12 +293,141 @@ exports.productsScript = async (req, res) => {
         catName: firstProduct.category,
       }).select("_id");
 
-      if (keysRelatedProducts.length > 1) {
-        const newArr = keysRelatedProducts.slice(1);
-        for (const product of keysRelatedProducts) {
-          console.log(product);
+      const optionsPro = {};
+
+      let attributeName = "";
+      let attributeInfo = "";
+      let attribuiteTearmName = "";
+      let attribuiteTearm = "";
+      for (const product of keysRelatedProducts) {
+        if (product.size !== "") {
+          optionsPro["Size"] = product.size;
+        }
+        if (product.color !== "") {
+          optionsPro["Color"] = product.color;
+        }
+        for (let i = 0; i < 10; i++) {
+          // Assuming the maximum index is 9
+          const optionName = product[`OptionName${i}`];
+          const optionValue = product[`OptionValue${i}`];
+
+          if (
+            optionName !== undefined &&
+            optionName !== "" &&
+            optionValue !== undefined &&
+            optionValue !== ""
+          ) {
+            if (attributeName !== optionName || attributeName === "") {
+              let info = await Attribute.findOne({ name: optionName });
+              if (!info && product.size === "" && product.color !== "") {
+                const data = {
+                  vendor: "6452263e58201ac82d1d14a8",
+                  name: optionName,
+                  status: "active",
+                  slug: optionName.trim(),
+                  terms: [], // Initialize the terms property
+                };
+                const getTerm = await AttributeTerm.findOneAndUpdate(
+                  { vendor: data.vendor, name: product.color },
+                  { name: term, status: "active" },
+                  { upsert: true, new: true }
+                );
+
+                if (getTerm != null) {
+                  if (!data.terms.includes(getTerm._id.toString())) {
+                    data.terms.push(getTerm._id.toString());
+                  }
+                }
+                const query = { slug: data.slug, vendor: data.vendor };
+                const update = {
+                  $set: {
+                    vendor: data.vendor,
+                    name: data.name,
+                    status: data.status,
+                    slug: data.slug,
+                  },
+                  $addToSet: { terms: { $each: data.terms } }, // Add new terms to the existing array
+                };
+
+                info = await Attribute.findOneAndUpdate(query, update, {
+                  upsert: true,
+                  new: true,
+                });
+              }
+              attributeInfo = info;
+              attributeName = optionName;
+            }
+            if (
+              attribuiteTearmName !== optionValue ||
+              attribuiteTearmName === ""
+            ) {
+              attribuiteTearm = await AttributeTerm.findOne({
+                name: optionValue,
+              });
+              attribuiteTearmName = optionValue;
+            }
+            const attribuiteTearmInfo = [
+              { _id: attribuiteTearm._id, name: attribuiteTearm.name },
+            ];
+
+            if (!attributes.length) {
+              let info = {
+                _id: attributeInfo._id,
+                name: attributeInfo.name,
+                terms: [...attribuiteTearmInfo],
+              };
+              attributes.push(info);
+            } else {
+              // Find the existing attribute info
+              const existingAttributeInfo = attributes.find(
+                (attr) => attr._id === attributeInfo._id
+              );
+
+              if (existingAttributeInfo) {
+                // Add new terms to the existing terms array
+                // existingAttributeInfo.terms =
+                existingAttributeInfo.terms.push(...attribuiteTearmInfo); // Concatenate the new terms
+              } else {
+                // If the attribute doesn't exist, create a new one
+                let newAttributeInfo = {
+                  _id: attributeInfo._id,
+                  name: attributeInfo.name,
+                  terms: [...attribuiteTearmInfo], // Replace with the new terms array
+                };
+                attributes.push(newAttributeInfo);
+              }
+            }
+
+            let productVariationData = {
+              price: product.cost,
+              compare_price: product.MSRP,
+              sku: product.parent_name + moment().unix(),
+              stock_quantity: product.QTY_available,
+              attributes: attribuiteTearmInfo,
+              image: product.picture_url_1,
+              images: [product.picture_url_1],
+              description: firstProduct.product_description,
+              tdid: product.tdid,
+            };
+            const query = { tdid: product.tdid };
+            const variation = await productVariation.findOneAndUpdate(
+              query,
+              productVariationData,
+              {
+                upsert: true,
+                new: true,
+              }
+            );
+            if(!variations[variation._id]){
+              variations.push(variation._id);
+            }
+            // console.log({optionName, optionValue});
+          }
         }
       }
+
+      console.log("overall attribute", attributes);
+      // console.log(optionsPro);
 
       // for (let index = 1; index <= 10; index++) {
       //   const element = firstProduct[`picture_url_${index}`];
@@ -307,64 +440,77 @@ exports.productsScript = async (req, res) => {
       //   listImages.push(updatedString);
       // }
 
-      // let images = [];
-      // if (firstProduct.picture_url_1) {
-      //   // await Promise.all(
-      //   // listImages.map(async (f) => {
-      //       let file = {
-      //         link: firstProduct.picture_url_1,
-      //         mimeType: "image",
-      //         type: "image",
-      //       };
-      //       const fileQuery = { link: firstProduct.picture_url_1 };
-      //       let fileData = await File.findOneAndUpdate(fileQuery, file, {
-      //         upsert: true,
-      //         new: true,
-      //       });
-      //       images.push(fileData._id);
-      //   // })
-      //   // );
-      // }
+      let images = [];
+      if (firstProduct.picture_url_1) {
+        // await Promise.all(
+        // listImages.map(async (f) => {
+        let file = {
+          link: firstProduct.picture_url_1,
+          mimeType: "image",
+          type: "image",
+        };
+        const fileQuery = { link: firstProduct.picture_url_1 };
+        let fileData = await File.findOneAndUpdate(fileQuery, file, {
+          upsert: true,
+          new: true,
+        });
+        images.push(fileData._id);
+        // })
+        // );
+      }
 
-      // let productData = {
-      //   vendor: "6452263e58201ac82d1d14a8",
-      //   // id: firstProduct.id,
-      //   name: firstProduct.parent_name,
-      //   date_created_utc: new Date(),
-      //   slug: firstProduct.parent_name + moment().unix(),
-      //   type: "simple",
-      //   status: "approved",
-      //   average: firstProduct.shipAvg || 0,
-      //   isFeatured: false,
-      //   brand: brand._id,
-      //   short_description: firstProduct.channel_restriction,
-      //   description: firstProduct.product_description,
-      //   sku: firstProduct.product_code,
-      //   upcId: firstProduct.parent_upc,
-      //   price: firstProduct.cost,
-      //   api_type: "external_api",
-      //   compare_price: firstProduct.MSRP,
-      //   department: department._id,
-      //   section: section._id,
-      //   categories: category._id,
-      //   stock_quantity: firstProduct.QTY_available,
-      //   pricingType: "unit",
-      //   stock_status: "instock",
-      //   total_sales: 0,
-      //   featured_image: images[0],
-      //   images: images ?? null,
-      //   acceptReturn: false,
-      //   returnDays: firstProduct.return,
-      //   tdid: firstProduct.tdid,
-      // };
+      let productData = {
+        vendor: "6452263e58201ac82d1d14a8",
+        // id: firstProduct.id,
+        name: firstProduct.parent_name,
+        displayName: firstProduct.parent_name,
+        date_created_utc: new Date(),
+        slug: firstProduct.parent_name + moment().unix(),
+        type: "simple",
+        status: "approved",
+        average: firstProduct.shipAvg || 0,
+        isFeatured: false,
+        brand: brand._id,
+        short_description: firstProduct.channel_restriction,
+        description: firstProduct.product_description,
+        sku: firstProduct.product_code,
+        upcId: firstProduct.parent_upc,
+        price: firstProduct.cost,
+        api_type: "external_api",
+        compare_price: firstProduct.MSRP,
+        department: department._id,
+        section: section._id,
+        categories: category._id,
+        stock_quantity: firstProduct.QTY_available,
+        pricingType: "unit",
+        stock_status: "instock",
+        total_sales: 0,
+        featured_image: images[0],
+        images: images ?? null,
+        acceptReturn: false,
+        returnDays: firstProduct.return,
+        tdid: firstProduct.tdid,
+        attributes: attributes,
+        variations: variations
+      };
+      let query = { tdid : firstProduct.tdid};
+      await Product.findOneAndUpdate(
+        query,
+        productData,
+        {
+          upsert: true,
+          new: true,
+        }
+      );
       // console.log("product Info ", productData);
       res.status(200).json({
-        data: keysRelatedProducts[0],
+        data: productData,
       });
       if (iterator === "3-850011460009-1") break;
 
       // const options = {};
 
+      // strong attributes and attributes terms
       // for (const item of keysRelatedProducts) {
       //   const terms = [
       //     ...new Set(keysRelatedProducts.map((it) => it.size.trim())),
