@@ -118,9 +118,22 @@ exports.productsScript = async (req, res) => {
 
     const info = await readCsvFile(absolutePath);
 
-    const keys = [...new Set(info.map((it) => it.parent_upc))];
+    const keys = [...new Set(info.map((it) => it.parent_upc))].filter(
+      (item) => item !== ""
+    );
 
     const attrInfo = [];
+
+    // const exception =  [...new Set(info.map((e) => {
+    //   if (e.OptionName0 === "Color") {
+    //     return {color : e.OptionName0, value : e.OptionValue0};
+    //   }
+    //   return null;
+    // }).filter(it => it !== null))];
+
+    // return res.status(200).json({
+    //   data: exception,
+    // });
 
     const departments = [...new Set(info.map((e) => e.dept.trim()))].filter(
       (e) => e !== ""
@@ -182,28 +195,30 @@ exports.productsScript = async (req, res) => {
       "_id"
     );
 
-    const colorWrongInfo = info
-      .map((item) => {
-        // console.log('in map', item.color, item.optionName);
-        if (
-          item.color !== "" &&
-          item.OptionName0 !== "" &&
-          item.OptionValue0 === ""
-        ) {
-          return {
-            color: item.color,
-            attr: item.OptionName0,
-          };
-        }
-        return null; // Return null for items that don't meet the conditions
-      })
-      .filter((item) => item !== null);
+    // option and color issue in csv
+    // const colorWrongInfo = info
+    //   .map((item) => {
+    //     // console.log('in map', item.color, item.optionName);
+    //     if (
+    //       item.color !== "" &&
+    //       item.OptionName0 !== "" &&
+    //       item.OptionValue0 === ""
+    //     ) {
+    //       return {
+    //         color: item.color,
+    //         attr: item.OptionName0,
+    //       };
+    //     }
+    //     return null; // Return null for items that don't meet the conditions
+    //   })
+    //   .filter((item) => item !== null);
 
-    console.log(colorWrongInfo);
+    // console.log(colorWrongInfo);
 
-    return res.status(200).json({
-      data: colorWrongInfo,
-    });
+    // return res.status(200).json({
+    //   data: colorWrongInfo,
+    // });
+
     // const sectionAndCategoriesSet = new Set();
 
     // info.forEach((e) => {
@@ -306,13 +321,13 @@ exports.productsScript = async (req, res) => {
       const variations = [];
       const attributes = [];
       const brand = await Brand.findOne({
-        name: firstProduct.manufacturer_name,
+        name: firstProduct.manufacturer_name.trim(),
       }).select("_id");
       const section = await Section.findOne({
-        sectionName: firstProduct.section,
+        sectionName: firstProduct.section.trim(),
       }).select("_id");
       const category = await Category.findOne({
-        catName: firstProduct.category,
+        catName: firstProduct.category.trim(),
       }).select("_id");
 
       const optionsPro = {};
@@ -334,8 +349,14 @@ exports.productsScript = async (req, res) => {
             optionValue !== undefined &&
             optionValue !== ""
           ) {
-            if (attributeName !== optionName || attributeName === "") {
-              let info = await Attribute.findOne({ name: optionName });
+            if (
+              attributeName !== optionName ||
+              attributeName === "" ||
+              attributeInfo === "" ||
+              attributeInfo?.name !== optionName
+            ) {
+              console.log(optionName, 'option NAme ');
+              let info = await Attribute.findOne({ name: optionName.trim() === 'STYLE' || 'style' ? 'Style' : optionName.trim()});
               if (!info && product.size === "" && product.color !== "") {
                 const data = {
                   vendor: "6452263e58201ac82d1d14a8",
@@ -376,13 +397,16 @@ exports.productsScript = async (req, res) => {
             }
             if (
               attribuiteTearmName !== optionValue ||
-              attribuiteTearmName === ""
+              attribuiteTearmName === "" ||
+              attribuiteTearm === "" ||
+              attribuiteTearm === null
             ) {
               attribuiteTearm = await AttributeTerm.findOne({
-                name: optionValue,
+                name: optionValue.trim(),
               });
               attribuiteTearmName = optionValue;
             }
+            console.log(attribuiteTearm, product);
             attribuiteTearmInfo.push({
               _id: attribuiteTearm._id,
               name: attribuiteTearm.name,
@@ -398,13 +422,23 @@ exports.productsScript = async (req, res) => {
             } else {
               // Find the existing attribute info
               const existingAttributeInfo = attributes.find(
-                (attr) => attr._id === attributeInfo._id
+                (attr) => attr.name === attributeInfo.name
               );
 
               if (existingAttributeInfo) {
                 // Add new terms to the existing terms array
                 // existingAttributeInfo.terms =
-                existingAttributeInfo.terms.push(...attribuiteTearmInfo); // Concatenate the new terms
+                const existingNames = existingAttributeInfo.terms.map(
+                  (term) => term.name
+                );
+
+                for (const term of attribuiteTearmInfo) {
+                  if (!existingNames.includes(term.name)) {
+                    existingAttributeInfo.terms.push(term);
+                    existingNames.push(term.name);
+                  }
+                }
+                // existingAttributeInfo.terms.push(...attribuiteTearmInfo); // Concatenate the new terms
               } else {
                 // If the attribute doesn't exist, create a new one
                 let newAttributeInfo = {
@@ -419,18 +453,106 @@ exports.productsScript = async (req, res) => {
             // console.log({optionName, optionValue});
           }
         }
-        if (product.size !== "") {
-          optionsPro["Size"] = product.size;
+
+        const sizeTerms = [];
+        const colorTerms = [];
+        if (product.size.trim() !== "" && product.size.trim()) {
+          // console.log("here is", product);
+          console.log(product.size, {
+            name: product.size.trim(),
+          });
+          attribuiteTearm = await AttributeTerm.findOne({
+            name: product.size.trim(),
+          });
+          // attribuiteTearmName = optionValue;
+          sizeTerms.push({
+            _id: attribuiteTearm._id,
+            name: attribuiteTearm.name,
+          });
+
+          attributeInfo = await Attribute.findOne({ name: "Size" });
+          // Find the existing attribute info
+          const existingAttributeInfo = attributes.find(
+            (attr) => attr.name === attributeInfo.name
+          );
+
+          if (existingAttributeInfo) {
+            // Add new terms to the existing terms array
+            const existingNames = existingAttributeInfo.terms.map(
+              (term) => term.name
+            );
+
+            for (const term of sizeTerms) {
+              if (!existingNames.includes(term.name)) {
+                existingAttributeInfo.terms.push(term);
+                existingNames.push(term.name);
+              }
+            }
+            // existingAttributeInfo.terms.push(...sizeTerms); // Concatenate the new terms
+          } else {
+            // If the attribute doesn't exist, create a new one
+            let newAttributeInfo = {
+              _id: attributeInfo._id,
+              name: attributeInfo.name,
+              terms: [...sizeTerms], // Replace with the new terms array
+            };
+            attributes.push(newAttributeInfo);
+          }
         }
-        if (product.color !== "") {
-          optionsPro["Color"] = product.color;
+        if (
+          product.color !== "" &&
+          ((product.OptionName0 === "" && product.OptionValue0 === "") ||
+            (product.OptionName0 !== "" && product.OptionValue0 !== ""))
+        ) {
+          attribuiteTearm = await AttributeTerm.findOne({
+            name: product.color.trim(),
+          });
+          // attribuiteTearmName = optionValue;
+          colorTerms.push({
+            _id: attribuiteTearm._id,
+            name: attribuiteTearm.name,
+          });
+
+          attributeInfo = await Attribute.findOne({ name: "Color" });
+          // Find the existing attribute info
+          const existingAttributeInfo = attributes.find(
+            (attr) => attr.name === attributeInfo.name
+          );
+
+          if (existingAttributeInfo) {
+            // Add new terms to the existing terms array
+            const existingNames = existingAttributeInfo.terms.map(
+              (term) => term.name
+            );
+
+            for (const term of colorTerms) {
+              if (!existingNames.includes(term.name)) {
+                existingAttributeInfo.terms.push(term);
+                existingNames.push(term.name);
+              }
+            }
+            // existingAttributeInfo.terms.push(...colorTerms); // Concatenate the new terms
+          } else {
+            // If the attribute doesn't exist, create a new one
+            let newAttributeInfo = {
+              _id: attributeInfo._id,
+              name: attributeInfo.name,
+              terms: [...colorTerms], // Replace with the new terms array
+            };
+            attributes.push(newAttributeInfo);
+          }
         }
+        const mergedArray = [
+          ...attribuiteTearmInfo,
+          ...sizeTerms,
+          ...colorTerms,
+        ];
         let productVariationData = {
           price: product.cost,
           compare_price: product.MSRP,
           sku: product.parent_name + moment().unix(),
           stock_quantity: product.QTY_available,
-          attributes: attribuiteTearmInfo,
+          attributes: mergedArray,
           image: product.picture_url_1,
           images: [product.picture_url_1],
           description: firstProduct.product_description,
@@ -451,6 +573,7 @@ exports.productsScript = async (req, res) => {
       }
 
       console.log("overall attribute", attributes);
+
       // console.log(optionsPro);
 
       // for (let index = 1; index <= 10; index++) {
@@ -524,7 +647,7 @@ exports.productsScript = async (req, res) => {
       });
       // console.log("product Info ", productData);
 
-      if (iterator === "6-851-3") break;
+      // if (iterator === "124-736473105460-1") break;
 
       // const options = {};
 
