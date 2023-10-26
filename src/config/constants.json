@@ -608,17 +608,5 @@
         "mainnet"
     ]
 
-
-    // "PAYMENT_CONFIG": {
-    //     "Default_Payment_Gateway": "Stripe",
-    //     "sandbox":{
-    //         "Stripe_Publishable_Key": "pk_test_LLAdXVApiHYl2QUmtHy2HiHT",
-    //         "Stripe_Secret_Key": "sk_test_QxioQvyU85zxufSvaDuGZJnK"
-    //     },   
-    //     "live":{
-    //         "Stripe_Secret_Key": "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",
-    //         "Stripe_Publishable_Key": "pk_live_51LTrHDBIfwwdABDLXTou9hBkVYeRFziZRU4JVrv1b5kvNHN0oesQ1WZKHnEo5RN81ikrXS5cBPpZlyCeJ3N0tjZU00uSDczADx"
-    //     }
-    // }
 }
 
