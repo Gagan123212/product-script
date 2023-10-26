@@ -131,8 +131,10 @@ exports.productsScript = async (req, res) => {
     //   return null;
     // }).filter(it => it !== null))];
 
+   
+
     // return res.status(200).json({
-    //   data: exception,
+    //   data: addUnitatt,
     // });
 
     const departments = [...new Set(info.map((e) => e.dept.trim()))].filter(
@@ -355,8 +357,13 @@ exports.productsScript = async (req, res) => {
               attributeInfo === "" ||
               attributeInfo?.name !== optionName
             ) {
-              console.log(optionName, 'option NAme ');
-              let info = await Attribute.findOne({ name: optionName.trim() === 'STYLE' || 'style' ? 'Style' : optionName.trim()});
+              console.log(optionName, "option NAme ");
+              let info = await Attribute.findOne({
+                name:
+                  optionName.trim() === "STYLE" || "style"
+                    ? "Style"
+                    : optionName.trim(),
+              });
               if (!info && product.size === "" && product.color !== "") {
                 const data = {
                   vendor: "6452263e58201ac82d1d14a8",
@@ -456,6 +463,7 @@ exports.productsScript = async (req, res) => {
 
         const sizeTerms = [];
         const colorTerms = [];
+        const unitsTerms = [];
         if (product.size.trim() !== "" && product.size.trim()) {
           // console.log("here is", product);
           console.log(product.size, {
@@ -499,6 +507,46 @@ exports.productsScript = async (req, res) => {
             attributes.push(newAttributeInfo);
           }
         }
+
+        if (product.pack_of.trim() !== "" && product.pack_of.trim()) {
+          attribuiteTearm = await AttributeTerm.findOne({
+            name: product.pack_of.trim(),
+          });
+          // attribuiteTearmName = optionValue;
+          unitsTerms.push({
+            _id: attribuiteTearm._id,
+            name: attribuiteTearm.name,
+          });
+
+          attributeInfo = await Attribute.findOne({ name: "Units" });
+          // Find the existing attribute info
+          const existingAttributeInfo = attributes.find(
+            (attr) => attr.name === attributeInfo.name
+          );
+
+          if (existingAttributeInfo) {
+            // Add new terms to the existing terms array
+            const existingNames = existingAttributeInfo.terms.map(
+              (term) => term.name
+            );
+
+            for (const term of unitsTerms) {
+              if (!existingNames.includes(term.name)) {
+                existingAttributeInfo.terms.push(term);
+                existingNames.push(term.name);
+              }
+            }
+          } else {
+            // If the attribute doesn't exist, create a new one
+            let newAttributeInfo = {
+              _id: attributeInfo._id,
+              name: attributeInfo.name,
+              terms: [...unitsTerms], // Replace with the new terms array
+            };
+            attributes.push(newAttributeInfo);
+          }
+        }
+
         if (
           product.color !== "" &&
           ((product.OptionName0 === "" && product.OptionValue0 === "") ||
@@ -546,6 +594,7 @@ exports.productsScript = async (req, res) => {
           ...attribuiteTearmInfo,
           ...sizeTerms,
           ...colorTerms,
+          ...unitsTerms
         ];
         let productVariationData = {
           price: product.cost,
@@ -661,6 +710,12 @@ exports.productsScript = async (req, res) => {
       //     ...new Set(keysRelatedProducts.map((it) => it.color.trim())),
       //   ].filter((item) => item !== "");
 
+      //   const addUnitatt = [...new Set(keysRelatedProducts.map((it) => it.pack_of.trim()))].filter(
+      //     (e) => e !== ""
+      //   );
+
+
+      //   options['Units']  = addUnitatt;
       //   options["Size"] = terms;
       //   options["Color"] = colorTerms;
       //   for (let i = 0; i < 10; i++) {
